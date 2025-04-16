@@ -10,6 +10,8 @@ const { getNearbyPlaces, geocodeAddress, validateItinerary } = require('./mapsSe
  */
 async function findSuitableLocations(startLocation, city, durationHours, transportMode) {
   try {
+    console.log(`Finding locations near: ${JSON.stringify(startLocation)} in ${city}`);
+    
     // Convert hours to minutes
     const totalAvailableMinutes = durationHours * 60;
     
@@ -27,26 +29,61 @@ async function findSuitableLocations(startLocation, city, durationHours, transpo
         searchRadiusMeters = durationHours * 1500; // Roughly 1.5km per hour of available time
     }
     
+    // Ensure minimum search radius regardless of duration
+    searchRadiusMeters = Math.max(searchRadiusMeters, 2000); // At least 2km
+    
     // Cap the radius to reasonable values
     searchRadiusMeters = Math.min(searchRadiusMeters, 10000); // Max 10km
     
+    console.log(`Using search radius of ${searchRadiusMeters} meters`);
+    
     // Find places of interest near the starting location
-    const placeTypes = ['tourist_attraction', 'museum', 'park', 'historic', 'point_of_interest'];
+    const placeTypes = ['tourist_attraction', 'museum', 'park', 'historic', 'point_of_interest', 'landmark', 'church', 'restaurant', 'cafe'];
     
     // Collect places from multiple types
     let allPlaces = [];
     for (const type of placeTypes) {
-      const places = await getNearbyPlaces(startLocation, type, searchRadiusMeters);
-      allPlaces = [...allPlaces, ...places];
+      try {
+        console.log(`Searching for places of type: ${type}`);
+        const places = await getNearbyPlaces(startLocation, type, searchRadiusMeters);
+        console.log(`Found ${places.length} places of type ${type}`);
+        allPlaces = [...allPlaces, ...places];
+      } catch (error) {
+        console.error(`Error finding ${type} places:`, error);
+        // Continue with other types even if one fails
+      }
+    }
+    
+    console.log(`Total places found before filtering: ${allPlaces.length}`);
+    
+    if (allPlaces.length === 0) {
+      // If no places found, try a fallback approach
+      console.log("No places found with specific types, trying generic search");
+      
+      try {
+        // Try with a more generic search
+        const genericPlaces = await getNearbyPlaces(startLocation, null, searchRadiusMeters);
+        allPlaces = [...allPlaces, ...genericPlaces];
+        console.log(`Found ${genericPlaces.length} places with generic search`);
+      } catch (error) {
+        console.error("Error with generic place search:", error);
+      }
     }
     
     // Remove duplicates (by placeId)
     const uniquePlaces = Array.from(new Map(allPlaces.map(place => [place.placeId, place])).values());
+    console.log(`Unique places after deduplication: ${uniquePlaces.length}`);
     
-    // Sort by rating and limit to reasonable number (max 10)
+    // Sort by rating and limit to reasonable number (max 15)
     const candidatePlaces = uniquePlaces
       .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-      .slice(0, 10);
+      .slice(0, 15);
+    
+    console.log(`Final candidate places: ${candidatePlaces.length}`);
+    
+    if (candidatePlaces.length === 0) {
+      throw new Error(`Could not find any interesting locations in ${city} near the provided coordinates`);
+    }
     
     return candidatePlaces;
   } catch (error) {

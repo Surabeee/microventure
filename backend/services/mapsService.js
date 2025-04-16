@@ -134,21 +134,31 @@ async function geocodeAddress(address, city) {
  */
 async function getNearbyPlaces(location, type, radius = 1000) {
   try {
-    const cacheKey = `places_${location.latitude}_${location.longitude}_${type}_${radius}`;
+    const cacheKey = `places_${location.latitude}_${location.longitude}_${type || 'generic'}_${radius}`;
     
     // Check cache first
     const cachedResult = cache.get(cacheKey);
     if (cachedResult) {
+      console.log(`Using cached places data for ${type || 'generic'}`);
       return cachedResult;
     }
     
+    // Prepare the request params
+    const params = {
+      location: `${location.latitude},${location.longitude}`,
+      radius: radius,
+      key: process.env.GOOGLE_MAPS_API_KEY
+    };
+    
+    // Add type if specified
+    if (type) {
+      params.type = type;
+    }
+    
+    console.log(`Making Places API request for ${type || 'generic'} with radius ${radius}m`);
+    
     const response = await mapsClient.placesNearby({
-      params: {
-        location: `${location.latitude},${location.longitude}`,
-        radius: radius,
-        type: type,
-        key: process.env.GOOGLE_MAPS_API_KEY
-      }
+      params: params
     });
     
     if (response.data.status === 'OK') {
@@ -170,10 +180,18 @@ async function getNearbyPlaces(location, type, radius = 1000) {
       
       return places;
     } else {
+      console.warn(`Places request returned status: ${response.data.status}`);
+      
+      // Handle ZERO_RESULTS differently than other error statuses
+      if (response.data.status === 'ZERO_RESULTS') {
+        return [];
+      }
+      
       throw new Error(`Places request failed: ${response.data.status}`);
     }
   } catch (error) {
     console.error('Error getting nearby places:', error);
+    // Return empty array rather than throwing to allow the search to continue with other types
     return [];
   }
 }
