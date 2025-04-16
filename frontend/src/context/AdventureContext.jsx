@@ -8,6 +8,9 @@ export const AdventureProvider = ({ children }) => {
   const [adventure, setAdventure] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationStatus, setLocationStatus] = useState('idle'); // 'idle', 'loading', 'success', 'error'
+  const [locationError, setLocationError] = useState(null);
   
   // Reset adventure state
   const resetAdventure = () => {
@@ -45,7 +48,13 @@ export const AdventureProvider = ({ children }) => {
       setError,
       resetAdventure,
       completeStop,
-      isAdventureCompleted
+      isAdventureCompleted,
+      userLocation,
+      setUserLocation,
+      locationStatus,
+      setLocationStatus,
+      locationError,
+      setLocationError
     }}>
       {children}
     </AdventureContext.Provider>

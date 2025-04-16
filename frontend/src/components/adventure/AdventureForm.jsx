@@ -1,27 +1,91 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdventure } from '../../context/AdventureContext';
 import api from '../../services/api';
+import { getCurrentLocation, getLocationName } from '../../utils/locationService';
+import { FaLocationArrow, FaTimes, FaCheck } from 'react-icons/fa';
 
 const AdventureForm = () => {
   const navigate = useNavigate();
-  const { setAdventure, setLoading, setError } = useAdventure();
+  const { 
+    setAdventure, 
+    setLoading, 
+    setError, 
+    userLocation, 
+    setUserLocation,
+    locationStatus,
+    setLocationStatus,
+    locationError,
+    setLocationError
+  } = useAdventure();
   
   const [city, setCity] = useState('');
   const [duration, setDuration] = useState('2');
   const [transportMode, setTransportMode] = useState('walking');
+  const [locationName, setLocationName] = useState('');
   
+  // Request user's location
+  const requestLocation = async () => {
+    setLocationStatus('loading');
+    setLocationError(null);
+    
+    try {
+      const location = await getCurrentLocation();
+      setUserLocation(location);
+      
+      // Get location name for display
+      const name = await getLocationName(location.latitude, location.longitude);
+      setLocationName(name);
+      
+      setLocationStatus('success');
+    } catch (error) {
+      console.error('Location error:', error);
+      setLocationError(error.message);
+      setLocationStatus('error');
+    }
+  };
+  
+  // Clear location data
+  const clearLocation = () => {
+    setUserLocation(null);
+    setLocationName('');
+    setLocationStatus('idle');
+    setLocationError(null);
+  };
+  
+  // Submit form with or without location
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     
     try {
-      const result = await api.generateAdventure(city, duration, transportMode);
+      // Include location if available
+      const adventureData = {
+        city,
+        duration,
+        transportMode,
+      };
+      
+      // Only add location if we have it
+      if (userLocation) {
+        adventureData.location = {
+          latitude: userLocation.latitude,
+          longitude: userLocation.longitude
+        };
+      }
+      
+      const result = await api.generateAdventure(
+        adventureData.city,
+        adventureData.duration,
+        adventureData.transportMode,
+        adventureData.location
+      );
+      
       setAdventure(result);
       navigate('/adventure');
     } catch (err) {
-      setError('Failed to generate adventure. Please try again.');
+      setError(typeof err === 'string' ? err : 'Failed to generate adventure. Please try again.');
       console.error(err);
     } finally {
       setLoading(false);
@@ -64,7 +128,7 @@ const AdventureForm = () => {
           </select>
         </div>
         
-        <div className="mb-6">
+        <div className="mb-4">
           <label className="block text-gray-700 mb-2">Transportation Mode</label>
           <div className="flex space-x-4">
             <label className="flex items-center">
@@ -98,6 +162,59 @@ const AdventureForm = () => {
               Car/Taxi
             </label>
           </div>
+        </div>
+        
+        <div className="mb-6">
+          <label className="block text-gray-700 mb-2">Starting Location</label>
+          
+          {locationStatus === 'success' ? (
+            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-md">
+              <div className="flex items-center">
+                <FaCheck className="text-green-500 mr-2" />
+                <span>{locationName}</span>
+              </div>
+              <button 
+                type="button"
+                onClick={clearLocation}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <FaTimes />
+              </button>
+            </div>
+          ) : locationStatus === 'loading' ? (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-md flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-primary mr-2"></div>
+              <span>Getting your location...</span>
+            </div>
+          ) : locationStatus === 'error' ? (
+            <div className="mb-2">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 mb-2">
+                {locationError}
+              </div>
+              <button
+                type="button"
+                onClick={requestLocation}
+                className="text-primary hover:underline text-sm"
+              >
+                Try again
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={requestLocation}
+              className="w-full flex items-center justify-center bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 transition duration-200 border border-gray-300"
+            >
+              <FaLocationArrow className="mr-2" />
+              Use my current location
+            </button>
+          )}
+          
+          {locationStatus !== 'idle' && locationStatus !== 'success' && (
+            <p className="text-sm text-gray-500 mt-2">
+              Your adventure will start from a random location in {city} if you don't provide your current location.
+            </p>
+          )}
         </div>
         
         <button

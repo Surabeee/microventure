@@ -20,3 +20,6 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+const directionsRoutes = require('./routes/directionsRoutes');
+app.use('/api/directions', directionsRoutes);
