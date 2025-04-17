@@ -4,6 +4,8 @@ import { useAdventure } from '../../context/AdventureContext';
 import api from '../../services/api';
 import { getCurrentLocation, getLocationName } from '../../utils/locationService';
 import { FaLocationArrow, FaTimes, FaCheck } from 'react-icons/fa';
+import { FaUtensils, FaLandmark, FaTree, FaShoppingBag } from 'react-icons/fa';
+
 
 const AdventureForm = () => {
   const navigate = useNavigate();
@@ -54,49 +56,76 @@ const AdventureForm = () => {
   };
   
   // Submit form with or without location
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+  // Add this state to the component
+const [preferences, setPreferences] = useState([]);
+
+// Add this function to the component
+const togglePreference = (pref) => {
+  if (preferences.includes(pref)) {
+    setPreferences(preferences.filter(p => p !== pref));
+  } else {
+    setPreferences([...preferences, pref]);
+  }
+};
+
+// Update the handleSubmit function to include preferences
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
+  
+  try {
+    // Include location and preferences if available
+    const adventureData = {
+      city,
+      duration,
+      transportMode,
+      preferences // Add preferences here
+    };
     
-    try {
-      // Include location if available
-      const adventureData = {
-        city,
-        duration,
-        transportMode,
+    // Only add location if we have it
+    if (userLocation) {
+      adventureData.location = {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude
       };
-      
-      // Only add location if we have it
-      if (userLocation) {
-        adventureData.location = {
-          latitude: userLocation.latitude,
-          longitude: userLocation.longitude
-        };
-      }
-      
-      const result = await api.generateAdventure(
-        adventureData.city,
-        adventureData.duration,
-        adventureData.transportMode,
-        adventureData.location
-      );
-      
-      setAdventure(result);
-      navigate('/adventure');
-    } catch (err) {
-      setError(typeof err === 'string' ? err : 'Failed to generate adventure. Please try again.');
-      console.error(err);
-    } finally {
-      setLoading(false);
     }
-  };
+    
+    const result = await api.generateAdventure(
+      adventureData.city,
+      adventureData.duration,
+      adventureData.transportMode,
+      adventureData.location,
+      adventureData.preferences // Pass preferences to the API
+    );
+    
+    setAdventure(result);
+    navigate('/adventure');
+  } catch (err) {
+    if (err.response && err.response.data && err.response.data.suggestion) {
+      // Display the suggestion if available
+      setError(`${err.response.data.error} ${err.response.data.suggestion}`);
+    } else {
+      setError(typeof err === 'string' ? err : 'Failed to generate adventure. Please try again.');
+    }
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
+
+  
+
   
   return (
     <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold mb-6 text-center">Create Your Adventure</h2>
       
       <form onSubmit={handleSubmit}>
+
+      
+     
+
         <div className="mb-4">
           <label htmlFor="city" className="block text-gray-700 mb-2">City</label>
           <input
@@ -215,6 +244,47 @@ const AdventureForm = () => {
               Your adventure will start from a random location in {city} if you don't provide your current location.
             </p>
           )}
+
+          <div className="mb-6">
+            <label className="block text-gray-700 mb-2">What are you interested in? (Optional)</label>
+            <div className="grid grid-cols-2 gap-3">
+              <div 
+                className={`p-3 border rounded-md cursor-pointer flex items-center transition-colors
+                            ${preferences.includes('food') ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:bg-gray-50'}`}
+                onClick={() => togglePreference('food')}
+              >
+                <FaUtensils className="mr-2 text-primary" />
+                <span>Food & Drinks</span>
+              </div>
+              
+              <div 
+                className={`p-3 border rounded-md cursor-pointer flex items-center transition-colors
+                            ${preferences.includes('culture') ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:bg-gray-50'}`}
+                onClick={() => togglePreference('culture')}
+              >
+                <FaLandmark className="mr-2 text-primary" />
+                <span>Culture & History</span>
+              </div>
+              
+              <div 
+                className={`p-3 border rounded-md cursor-pointer flex items-center transition-colors
+                            ${preferences.includes('nature') ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:bg-gray-50'}`}
+                onClick={() => togglePreference('nature')}
+              >
+                <FaTree className="mr-2 text-primary" />
+                <span>Parks & Nature</span>
+              </div>
+              
+              <div 
+                className={`p-3 border rounded-md cursor-pointer flex items-center transition-colors
+                            ${preferences.includes('shopping') ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:bg-gray-50'}`}
+                onClick={() => togglePreference('shopping')}
+              >
+                <FaShoppingBag className="mr-2 text-primary" />
+                <span>Shopping</span>
+              </div>
+            </div>
+          </div>
         </div>
         
         <button

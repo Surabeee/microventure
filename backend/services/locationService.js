@@ -6,9 +6,10 @@ const { getNearbyPlaces, geocodeAddress, validateItinerary } = require('./mapsSe
  * @param {String} city - City name
  * @param {Number} durationHours - Available time in hours
  * @param {String} transportMode - Mode of transportation
+ * @param {Array} preferences - User preferences for location types
  * @returns {Promise<Array>} Array of suitable locations
  */
-async function findSuitableLocations(startLocation, city, durationHours, transportMode) {
+async function findSuitableLocations(startLocation, city, durationHours, transportMode, preferences = []) {
   try {
     console.log(`Finding locations near: ${JSON.stringify(startLocation)} in ${city}`);
     
@@ -19,49 +20,119 @@ async function findSuitableLocations(startLocation, city, durationHours, transpo
     let searchRadiusMeters;
     switch(transportMode) {
       case 'car/taxi':
-        searchRadiusMeters = durationHours * 5000; // Roughly 5km per hour of available time
+        searchRadiusMeters = durationHours * 8000; // Roughly 8km per hour of available time
         break;
       case 'public transit':
-        searchRadiusMeters = durationHours * 3000; // Roughly 3km per hour of available time
+        searchRadiusMeters = durationHours * 5000; // Roughly 5km per hour of available time
         break;
       case 'walking':
       default:
-        searchRadiusMeters = durationHours * 1500; // Roughly 1.5km per hour of available time
+        searchRadiusMeters = durationHours * 2000; // Roughly 2km per hour of available time
     }
     
     // Ensure minimum search radius regardless of duration
     searchRadiusMeters = Math.max(searchRadiusMeters, 2000); // At least 2km
     
     // Cap the radius to reasonable values
-    searchRadiusMeters = Math.min(searchRadiusMeters, 10000); // Max 10km
+    searchRadiusMeters = Math.min(searchRadiusMeters, 15000); // Max 15km
     
     console.log(`Using search radius of ${searchRadiusMeters} meters`);
     
-    // Find places of interest near the starting location
-    const placeTypes = ['tourist_attraction', 'museum', 'park', 'historic', 'point_of_interest', 'landmark', 'church', 'restaurant', 'cafe'];
+    // Define high-quality place types based on preferences or default to a diverse mix
+    let primaryPlaceTypes = [];
+    let secondaryPlaceTypes = [];
+    
+    // Default set of place types (high priority)
+    primaryPlaceTypes = [
+      'tourist_attraction', 
+      'museum', 
+      'art_gallery',
+      'landmark', 
+      'park', 
+      'historical_landmark'
+    ];
+    
+    // Secondary set (medium priority)
+    secondaryPlaceTypes = [
+      'restaurant', 
+      'cafe', 
+      'shopping_mall', 
+      'library',
+      'church', 
+      'mosque', 
+      'hindu_temple',
+      'zoo',
+      'amusement_park'
+    ];
+    
+    // Adjust types based on preferences if provided
+    if (preferences && preferences.length > 0) {
+      if (preferences.includes('food')) {
+        primaryPlaceTypes.push('restaurant', 'cafe');
+      }
+      if (preferences.includes('culture')) {
+        primaryPlaceTypes.push('art_gallery', 'museum');
+      }
+      if (preferences.includes('nature')) {
+        primaryPlaceTypes.push('park', 'natural_feature');
+      }
+      if (preferences.includes('shopping')) {
+        primaryPlaceTypes.push('shopping_mall', 'department_store');
+      }
+    }
     
     // Collect places from multiple types
     let allPlaces = [];
-    for (const type of placeTypes) {
+    
+    // First try primary types
+    for (const type of primaryPlaceTypes) {
       try {
         console.log(`Searching for places of type: ${type}`);
         const places = await getNearbyPlaces(startLocation, type, searchRadiusMeters);
-        console.log(`Found ${places.length} places of type ${type}`);
-        allPlaces = [...allPlaces, ...places];
+        
+        // Filter for places with ratings above 4.0 or with many reviews
+        const highQualityPlaces = places.filter(place => 
+          (place.rating && place.rating >= 4.0) || 
+          (place.userRatingsTotal && place.userRatingsTotal > 50)
+        );
+        
+        console.log(`Found ${highQualityPlaces.length} high-quality places of type ${type}`);
+        allPlaces = [...allPlaces, ...highQualityPlaces];
       } catch (error) {
         console.error(`Error finding ${type} places:`, error);
-        // Continue with other types even if one fails
+      }
+    }
+    
+    // If we don't have enough high-quality places, try secondary types
+    if (allPlaces.length < 5) {
+      for (const type of secondaryPlaceTypes) {
+        try {
+          console.log(`Searching for secondary places of type: ${type}`);
+          const places = await getNearbyPlaces(startLocation, type, searchRadiusMeters);
+          
+          // Apply less strict filtering for secondary places
+          const goodPlaces = places.filter(place => 
+            (place.rating && place.rating >= 3.5) || 
+            (place.userRatingsTotal && place.userRatingsTotal > 20)
+          );
+          
+          console.log(`Found ${goodPlaces.length} good places of type ${type}`);
+          allPlaces = [...allPlaces, ...goodPlaces];
+          
+          // Break if we have enough places
+          if (allPlaces.length >= 10) break;
+        } catch (error) {
+          console.error(`Error finding ${type} places:`, error);
+        }
       }
     }
     
     console.log(`Total places found before filtering: ${allPlaces.length}`);
     
+    // If still no places found, try a more generic approach
     if (allPlaces.length === 0) {
-      // If no places found, try a fallback approach
       console.log("No places found with specific types, trying generic search");
-      
       try {
-        // Try with a more generic search
         const genericPlaces = await getNearbyPlaces(startLocation, null, searchRadiusMeters);
         allPlaces = [...allPlaces, ...genericPlaces];
         console.log(`Found ${genericPlaces.length} places with generic search`);
@@ -76,7 +147,7 @@ async function findSuitableLocations(startLocation, city, durationHours, transpo
     
     // Sort by rating and limit to reasonable number (max 15)
     const candidatePlaces = uniquePlaces
-      .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+      .sort((a, b) => ((b.rating || 0) - (a.rating || 0)))
       .slice(0, 15);
     
     console.log(`Final candidate places: ${candidatePlaces.length}`);
@@ -91,6 +162,8 @@ async function findSuitableLocations(startLocation, city, durationHours, transpo
     throw error;
   }
 }
+
+
 
 /**
  * Create an optimized itinerary

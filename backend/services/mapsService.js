@@ -126,7 +126,7 @@ async function geocodeAddress(address, city) {
 }
 
 /**
- * Get places of interest near a location
+ * Get places of interest near a location with detailed information
  * @param {Object} location - Coordinates {latitude, longitude}
  * @param {String} type - Place type (e.g., 'tourist_attraction', 'museum')
  * @param {Number} radius - Search radius in meters
@@ -147,6 +147,7 @@ async function getNearbyPlaces(location, type, radius = 1000) {
     const params = {
       location: `${location.latitude},${location.longitude}`,
       radius: radius,
+      rankby: 'prominence', // Get more prominent places
       key: process.env.GOOGLE_MAPS_API_KEY
     };
     
@@ -162,18 +163,53 @@ async function getNearbyPlaces(location, type, radius = 1000) {
     });
     
     if (response.data.status === 'OK') {
-      const places = response.data.results.map(place => ({
-        placeId: place.place_id,
-        name: place.name,
-        address: place.vicinity,
-        location: {
-          latitude: place.geometry.location.lat,
-          longitude: place.geometry.location.lng
-        },
-        types: place.types,
-        rating: place.rating,
-        userRatingsTotal: place.user_ratings_total
-      }));
+      // Get more details for top places to have better descriptions
+      const places = await Promise.all(
+        response.data.results.slice(0, 10).map(async place => {
+          let placeDetails = {
+            placeId: place.place_id,
+            name: place.name,
+            address: place.vicinity,
+            location: {
+              latitude: place.geometry.location.lat,
+              longitude: place.geometry.location.lng
+            },
+            types: place.types,
+            rating: place.rating,
+            userRatingsTotal: place.user_ratings_total
+          };
+          
+          try {
+            // Get additional details for top places
+            const detailsResponse = await mapsClient.placeDetails({
+              params: {
+                place_id: place.place_id,
+                fields: 'name,formatted_address,editorial_summary,rating,user_ratings_total,photo,url,website,formatted_phone_number,opening_hours',
+                key: process.env.GOOGLE_MAPS_API_KEY
+              }
+            });
+            
+            if (detailsResponse.data.status === 'OK') {
+              const details = detailsResponse.data.result;
+              // Enhance the place with more details
+              placeDetails = {
+                ...placeDetails,
+                formattedAddress: details.formatted_address || place.vicinity,
+                description: details.editorial_summary ? details.editorial_summary.overview : '',
+                website: details.website || '',
+                phoneNumber: details.formatted_phone_number || '',
+                isOpen: details.opening_hours ? details.opening_hours.open_now : null,
+                photoReference: details.photos && details.photos.length > 0 ? details.photos[0].photo_reference : null
+              };
+            }
+          } catch (detailsError) {
+            console.log(`Could not fetch details for ${place.name}: ${detailsError.message}`);
+            // Continue with basic information
+          }
+          
+          return placeDetails;
+        })
+      );
       
       // Cache the result
       cache.set(cacheKey, places);

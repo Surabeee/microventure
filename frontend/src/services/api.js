@@ -3,13 +3,14 @@ import axios from 'axios';
 const API_URL = 'http://localhost:5000/api';
 
 const api = {
-  generateAdventure: async (city, duration, transportMode, location = null) => {
+  generateAdventure: async (city, duration, transportMode, location = null, preferences = []) => {
     try {
       const response = await axios.post(`${API_URL}/adventure/generate`, {
         city,
         duration,
         transportMode,
-        location
+        location,
+        preferences
       });
       
       // Validate the response has proper structure
@@ -18,7 +19,10 @@ const api = {
       return adventure;
     } catch (error) {
       console.error('API error:', error);
-      throw error.response?.data?.error || error.message || 'Failed to generate adventure';
+      if (error.response && error.response.data) {
+        throw error.response.data;
+      }
+      throw error.message || 'Failed to generate adventure';
     }
   },
   
@@ -38,5 +42,6 @@ const api = {
     }
   }
 };
+
 
 export default api;
