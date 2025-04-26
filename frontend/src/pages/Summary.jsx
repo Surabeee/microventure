@@ -14,7 +14,6 @@ const Summary = () => {
   }, [adventure, isAdventureCompleted, navigate]);
   
   if (!adventure) return null;
-  
   const handleNewAdventure = () => {
     navigate('/');
   };
