@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { generateAdventure, createFallbackAdventure, generateFallbackLocations } = require('../services/geminiService');
+const { generateAdventureWithWebSearch } = require('../services/openaiService');
 const { geocodeAddress } = require('../services/mapsService');
 
 router.post('/generate', async (req, res) => {
@@ -64,8 +64,8 @@ router.post('/generate', async (req, res) => {
         });
       }
       
-      // Generate the adventure with enhanced options
-      const adventure = await generateAdventure(
+      // Generate the adventure with OpenAI
+      const adventure = await generateAdventureWithWebSearch(
         city, 
         durationHours, 
         transportMode, 
@@ -76,40 +76,7 @@ router.post('/generate', async (req, res) => {
       res.json(adventure);
     } catch (error) {
       console.error('Adventure generation detailed error:', error);
-      
-      // If the error is related to finding locations, use the fallback mechanism
-      if (error.message && (error.message.includes('find') || error.message.includes('locations'))) {
-        console.log("Using fallback adventure generation due to location error");
-        
-        // Generate fallback locations
-        const fallbackLocations = generateFallbackLocations(
-          startLocation, 
-          city, 
-          durationHours, 
-          transportMode
-        );
-        
-        // Create a fallback adventure with those locations
-        const fallbackAdventure = await createFallbackAdventure(
-          fallbackLocations, 
-          startLocation, 
-          city, 
-          durationHours, 
-          transportMode
-        );
-        
-        return res.json(fallbackAdventure);
-      }
-      
-      // Handle other types of errors
-      if (error.message && error.message.includes('time constraints')) {
-        return res.status(400).json({
-          error: 'The requested adventure cannot be completed in the given time.',
-          suggestion: `Try increasing your available time or switching to a faster mode of transportation.`
-        });
-      }
-      
-      throw error; // Re-throw if it's a different kind of error
+      throw error;
     }
   } catch (error) {
     console.error('Adventure generation error:', error);

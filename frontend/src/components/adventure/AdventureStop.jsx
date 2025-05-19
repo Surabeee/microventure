@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useAdventure } from '../../context/AdventureContext';
 import { FaLocationArrow, FaWalking, FaBus, FaTaxi, FaClock, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
-const AdventureStop = ({ stop, index, totalStops, isStartingPoint, showDirections = false }) => {
-  const { completeStop } = useAdventure();
+const AdventureStop = ({ stop, index, totalStops, isStartingPoint, isUserLocation = false, showDirections = false }) => {  const { completeStop } = useAdventure();
   const [directionsExpanded, setDirectionsExpanded] = useState(false);
   
   const handleComplete = () => {
@@ -35,7 +34,9 @@ const AdventureStop = ({ stop, index, totalStops, isStartingPoint, showDirection
         <div className={`${isStartingPoint ? 'bg-primary' : 'bg-gray-700'} text-white rounded-full w-8 h-8 flex items-center justify-center mr-3`}>
           {isStartingPoint ? <FaLocationArrow className="text-sm" /> : index + 1}
         </div>
-        <h3 className="text-xl font-semibold">{stop.name}</h3>
+        <h3 className="text-xl font-semibold">
+          {isUserLocation ? "Your Current Location" : stop.name}
+        </h3>
         {isStartingPoint && (
           <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
             Starting Point
@@ -43,15 +44,18 @@ const AdventureStop = ({ stop, index, totalStops, isStartingPoint, showDirection
         )}
       </div>
       
-      <div className="mb-4">
-        <p className="text-gray-700 mb-2">{stop.description}</p>
-        <p className="text-gray-700 mb-2"><span className="font-medium">What makes it special:</span> {stop.uniqueFeature}</p>
-        <p className="text-gray-700 mb-2"><span className="font-medium">Connection to your journey:</span> {stop.narrativeConnection}</p>
-        <div className="flex items-center text-gray-700">
-          <FaClock className="mr-1" />
-          <span className="font-medium mr-2">Recommended time:</span> {stop.timeToSpend} minutes
+      {/* Show the description only if it's not the user's starting point or has content */}
+      {(!isUserLocation || (isUserLocation && stop.description)) && (
+        <div className="mb-4">
+          <p className="text-gray-700 mb-2">{stop.description}</p>
+          <p className="text-gray-700 mb-2"><span className="font-medium">What makes it special:</span> {stop.uniqueFeature}</p>
+          <p className="text-gray-700 mb-2"><span className="font-medium">Connection to your journey:</span> {stop.narrativeConnection}</p>
+          <div className="flex items-center text-gray-700">
+            <FaClock className="mr-1" />
+            <span className="font-medium mr-2">Recommended time:</span> {stop.timeToSpend} minutes
+          </div>
         </div>
-      </div>
+      )}
       
       {/* Directions to next stop */}
       {index < totalStops - 1 && stop.travelTimeToNext && (

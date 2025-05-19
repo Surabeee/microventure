@@ -133,7 +133,10 @@ const AdventureDetails = () => {
           stop={stop} 
           index={index} 
           totalStops={adventure.stops.length} 
-          isStartingPoint={index === 0 && userLocation !== null}
+          // Always mark first stop as starting point
+          isStartingPoint={index === 0}
+          // Add a prop to indicate if this is the user's location
+          isUserLocation={index === 0 && userLocation !== null}
           showDirections={true}
         />
       ))}

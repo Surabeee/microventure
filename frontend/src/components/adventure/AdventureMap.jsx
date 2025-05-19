@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 // Use your Google Maps API key here
-const GOOGLE_MAPS_API_KEY = 'AIzaSyBHuX0oIAyx3C30UKl2OU44m-Qn1i89qCk';
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 const AdventureMap = ({ stops, currentStopIndex = 0 }) => {
   const [mapUrl, setMapUrl] = useState('');
@@ -20,21 +20,36 @@ const AdventureMap = ({ stops, currentStopIndex = 0 }) => {
     
     // Create waypoints string for Google Maps
     let waypointsString = '';
-    const markers = [];
-    
-    validStops.forEach((stop, index) => {
-      const { latitude, longitude } = stop.location;
-      
-      // Add marker for each stop
-      markers.push(`markers=color:${index === currentStopIndex ? 'blue' : 
-                                   index < currentStopIndex ? 'green' : 'red'}` +
-                   `|label:${index + 1}|${latitude},${longitude}`);
-      
-      // Add to waypoints (skipping first and last for directions)
-      if (index > 0 && index < validStops.length - 1) {
-        waypointsString += `|${latitude},${longitude}`;
-      }
-    });
+    // Update this section
+const markers = [];
+validStops.forEach((stop, index) => {
+  const { latitude, longitude } = stop.location;
+  
+  // Specifically mark the first stop as user's location with different styling
+  let markerColor;
+  let markerLabel;
+  
+  if (index === 0) {
+    // Starting point - user's location
+    markerColor = 'blue';
+    markerLabel = 'S'; // 'S' for Start
+  } else if (index <= currentStopIndex) {
+    // Completed stops
+    markerColor = 'green';
+    markerLabel = `${index}`;
+  } else {
+    // Future stops
+    markerColor = 'red';
+    markerLabel = `${index}`;
+  }
+  
+  markers.push(`markers=color:${markerColor}|label:${markerLabel}|${latitude},${longitude}`);
+  
+  // Add to waypoints (skipping first as it's the starting point)
+  if (index > 0 && index < validStops.length - 1) {
+    waypointsString += `|${latitude},${longitude}`;
+  }
+});
     
     // Determine center point (current stop or first stop)
     const center = validStops[currentStopIndex >= 0 && currentStopIndex < validStops.length ? 

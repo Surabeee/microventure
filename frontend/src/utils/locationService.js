@@ -41,15 +41,16 @@ const getCurrentLocation = () => {
   };
   
   // Gets nearby location name based on coordinates
-  const getLocationName = async (latitude, longitude) => {
-    try {
-      // In a real app, you'd use a reverse geocoding service here
-      // For MVP, we'll just return the coordinates for display
-      return `Location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`;
-    } catch (error) {
-      console.error('Error getting location name:', error);
-      return 'Current Location';
-    }
-  };
+  // Gets nearby location name based on coordinates
+const getLocationName = async (latitude, longitude) => {
+  try {
+    // For simplicity in the MVP, return a standardized label
+    // In a production app, this would use reverse geocoding to get actual address
+    return 'Your Current Location';
+  } catch (error) {
+    console.error('Error getting location name:', error);
+    return 'Your Current Location';
+  }
+};
   
   export { getCurrentLocation, getLocationName };
