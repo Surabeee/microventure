@@ -3,19 +3,17 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = {
-  generateAdventure: async (city, duration, transportMode, location = null, preferences = []) => {
+  generateAdventure: async (city, radius, transportMode, location = null, preferences = []) => {
     try {
       const response = await axios.post(`${API_URL}/adventure/generate`, {
         city,
-        duration,
+        radius,
         transportMode,
         location,
         preferences
       });
       
-      // Validate the response has proper structure
       const adventure = response.data;
-      
       return adventure;
     } catch (error) {
       console.error('API error:', error);
@@ -42,6 +40,5 @@ const api = {
     }
   }
 };
-
 
 export default api;

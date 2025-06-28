@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useAdventure } from '../../context/AdventureContext';
 import { FaLocationArrow, FaWalking, FaBus, FaTaxi, FaClock, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
-const AdventureStop = ({ stop, index, totalStops, isStartingPoint, isUserLocation = false, showDirections = false }) => {  const { completeStop } = useAdventure();
+const AdventureStop = ({ stop, index, totalStops, isStartingPoint, isUserLocation = false, showDirections = false }) => {
+  const { completeStop } = useAdventure();
   const [directionsExpanded, setDirectionsExpanded] = useState(false);
   
   const handleComplete = () => {
@@ -35,80 +36,71 @@ const AdventureStop = ({ stop, index, totalStops, isStartingPoint, isUserLocatio
           {isStartingPoint ? <FaLocationArrow className="text-sm" /> : index + 1}
         </div>
         <h3 className="text-xl font-semibold">
-          {isUserLocation ? "Your Current Location" : stop.name}
+          {isUserLocation ? 'Your Starting Location' : stop.name}
         </h3>
-        {isStartingPoint && (
-          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-            Starting Point
+        {stop.completed && (
+          <span className="ml-auto bg-green-100 text-green-800 text-sm px-2 py-1 rounded-full">
+            Completed ✓
           </span>
         )}
       </div>
       
-      {/* Show the description only if it's not the user's starting point or has content */}
-      {(!isUserLocation || (isUserLocation && stop.description)) && (
-        <div className="mb-4">
-          <p className="text-gray-700 mb-2">{stop.description}</p>
-          <p className="text-gray-700 mb-2"><span className="font-medium">What makes it special:</span> {stop.uniqueFeature}</p>
-          <p className="text-gray-700 mb-2"><span className="font-medium">Connection to your journey:</span> {stop.narrativeConnection}</p>
-          <div className="flex items-center text-gray-700">
-            <FaClock className="mr-1" />
-            <span className="font-medium mr-2">Recommended time:</span> {stop.timeToSpend} minutes
-          </div>
-        </div>
-      )}
-      
-      {/* Directions to next stop */}
-      {index < totalStops - 1 && stop.travelTimeToNext && (
-        <div className="border-t border-gray-200 pt-3 mt-3">
-          <div className="flex justify-between items-center cursor-pointer" onClick={toggleDirections}>
-            <div className="flex items-center text-gray-600">
-              {getTransportIcon(stop.transportMode || "walking")}
-              <span className="ml-2">
-                {stop.distanceToNext ? `${stop.distanceToNext} • ` : ''}
-                {stop.travelTimeToNext} minutes to next stop
-              </span>
-            </div>
-            <button className="text-gray-500">
-              {directionsExpanded ? <FaChevronUp /> : <FaChevronDown />}
-            </button>
-          </div>
+      {!isUserLocation && (
+        <div className="flex-1">
+          <p className="text-gray-600 mb-2">{stop.description}</p>
+          <p className="text-sm text-blue-600 mb-2">
+            <strong>What makes it special:</strong> {stop.uniqueFeature}
+          </p>
+          <p className="text-sm text-gray-500 mb-4">{stop.narrativeConnection}</p>
           
-          {directionsExpanded && showDirections && stop.directionsToNext && (
-            <div className="mt-3 pt-2 border-t border-gray-100">
-              <h4 className="text-sm font-medium mb-2">Directions to next stop:</h4>
-              <ol className="text-sm text-gray-600 space-y-2 pl-5">
-                {stop.directionsToNext.map((step, stepIndex) => (
-                  <li key={stepIndex} className="list-decimal">
-                    <div className="flex items-start">
-                      <span className="mr-2 mt-1">{getTransportIcon(step.travelMode)}</span>
-                      <div>
-                        <p>{renderInstructions(step.instructions)}</p>
-                        <p className="text-xs text-gray-500">{step.distance} • {step.duration}</p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
+          <div className="flex items-center text-sm text-gray-500 space-x-4">
+            <span className="flex items-center">
+              <FaClock className="mr-1" />
+              Suggested: {stop.suggestedTime || stop.timeToSpend + ' minutes'}
+            </span>
+            {stop.travelTimeToNext > 0 && (
+              <span className="flex items-center">
+                {getTransportIcon(stop.transportMode || 'walking')}
+                <span className="ml-1">{stop.travelTimeToNext} min to next</span>
+              </span>
+            )}
+          </div>
         </div>
       )}
       
-      {!stop.completed && (
-        <button
-          onClick={handleComplete}
-          className="mt-4 bg-secondary text-white py-2 px-4 rounded-md hover:bg-green-600 transition duration-200"
-        >
-          Mark as Completed
-        </button>
-      )}
+      {/* Action Buttons */}
+      <div className="flex gap-2 mt-4">
+        {!stop.completed && !isUserLocation && (
+          <button
+            onClick={handleComplete}
+            className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors"
+          >
+            Mark as Complete
+          </button>
+        )}
+        
+        {showDirections && stop.steps && stop.steps.length > 0 && (
+          <button
+            onClick={toggleDirections}
+            className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors flex items-center"
+          >
+            {directionsExpanded ? <FaChevronUp className="mr-1" /> : <FaChevronDown className="mr-1" />}
+            Directions
+          </button>
+        )}
+      </div>
       
-      {stop.completed && (
-        <div className="mt-4 text-green-600 font-medium flex items-center">
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-          </svg>
-          Completed!
+      {/* Expanded Directions */}
+      {directionsExpanded && stop.steps && (
+        <div className="mt-4 bg-gray-50 p-4 rounded-md">
+          <h4 className="font-semibold mb-2">Step-by-step directions:</h4>
+          <ol className="list-decimal list-inside space-y-1">
+            {stop.steps.map((step, stepIndex) => (
+              <li key={stepIndex} className="text-sm text-gray-700">
+                <span className="font-medium">{step.distance}</span> - {renderInstructions(step.instructions)}
+              </li>
+            ))}
+          </ol>
         </div>
       )}
     </div>

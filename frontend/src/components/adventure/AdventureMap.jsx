@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
-// Use your Google Maps API key here
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+// Use Mapbox instead of Google Maps
+const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
 const AdventureMap = ({ stops, currentStopIndex = 0 }) => {
   const [mapUrl, setMapUrl] = useState('');
@@ -17,87 +17,68 @@ const AdventureMap = ({ stops, currentStopIndex = 0 }) => {
     if (validStops.length === 0) {
       return;
     }
-    
-    // Create waypoints string for Google Maps
-    let waypointsString = '';
-    // Update this section
-const markers = [];
-validStops.forEach((stop, index) => {
-  const { latitude, longitude } = stop.location;
-  
-  // Specifically mark the first stop as user's location with different styling
-  let markerColor;
-  let markerLabel;
-  
-  if (index === 0) {
-    // Starting point - user's location
-    markerColor = 'blue';
-    markerLabel = 'S'; // 'S' for Start
-  } else if (index <= currentStopIndex) {
-    // Completed stops
-    markerColor = 'green';
-    markerLabel = `${index}`;
-  } else {
-    // Future stops
-    markerColor = 'red';
-    markerLabel = `${index}`;
-  }
-  
-  markers.push(`markers=color:${markerColor}|label:${markerLabel}|${latitude},${longitude}`);
-  
-  // Add to waypoints (skipping first as it's the starting point)
-  if (index > 0 && index < validStops.length - 1) {
-    waypointsString += `|${latitude},${longitude}`;
-  }
-});
-    
-    // Determine center point (current stop or first stop)
+
+    // Create Mapbox Static API URL
     const center = validStops[currentStopIndex >= 0 && currentStopIndex < validStops.length ? 
                              currentStopIndex : 0].location;
     
-    // Create Google Maps URL for static map
-    const baseMapUrl = `https://www.google.com/maps/embed/v1/view`;
-    const mapParams = new URLSearchParams({
-      key: GOOGLE_MAPS_API_KEY,
-      center: `${center.latitude},${center.longitude}`,
-      zoom: 14,
-      maptype: 'roadmap'
-    });
-    
-    // If we have multiple stops, use directions
-    let finalMapUrl;
-    if (validStops.length > 1) {
-      const origin = `${validStops[0].location.latitude},${validStops[0].location.longitude}`;
-      const destination = `${validStops[validStops.length - 1].location.latitude},${validStops[validStops.length - 1].location.longitude}`;
+    // Create markers for Mapbox
+    const markers = validStops.map((stop, index) => {
+      const { latitude, longitude } = stop.location;
       
-      finalMapUrl = `https://www.google.com/maps/embed/v1/directions?key=${GOOGLE_MAPS_API_KEY}` +
-                  `&origin=${origin}` +
-                  `&destination=${destination}` +
-                  (waypointsString ? `&waypoints=${waypointsString.substring(1)}` : '') +
-                  `&mode=${stops[0].transportMode === 'car/taxi' ? 'driving' :
-                           stops[0].transportMode === 'public transit' ? 'transit' : 'walking'}`;
-    } else {
-      finalMapUrl = `${baseMapUrl}?${mapParams.toString()}`;
-    }
+      let markerColor;
+      let markerSize;
+      
+      if (index === 0) {
+        // Starting point - user's location
+        markerColor = 'blue';
+        markerSize = 'l';
+      } else if (index <= currentStopIndex) {
+        // Completed stops
+        markerColor = 'green';
+        markerSize = 'm';
+      } else {
+        // Future stops
+        markerColor = 'red';
+        markerSize = 'm';
+      }
+      
+      return `pin-${markerSize}-${markerColor}(${longitude},${latitude})`;
+    }).join(',');
     
-    setMapUrl(finalMapUrl);
+    // Build Mapbox Static API URL
+    const mapboxUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/${markers}/${center.longitude},${center.latitude},13,0/600x400@2x?access_token=${MAPBOX_ACCESS_TOKEN}`;
+    
+    setMapUrl(mapboxUrl);
+    
   }, [stops, currentStopIndex]);
   
+  if (!MAPBOX_ACCESS_TOKEN) {
+    return (
+      <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center">
+        <p className="text-gray-600">Map unavailable - Mapbox token not configured</p>
+      </div>
+    );
+  }
+  
   if (!mapUrl) {
-    return <div className="h-64 bg-gray-100 flex items-center justify-center">Map loading...</div>;
+    return (
+      <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center animate-pulse">
+        <p className="text-gray-600">Loading map...</p>
+      </div>
+    );
   }
   
   return (
-    <div className="h-64 md:h-80 rounded-lg overflow-hidden">
-      <iframe
-        title="Adventure Map"
-        width="100%"
-        height="100%"
-        style={{ border: 0 }}
-        loading="lazy"
-        allowFullScreen
-        src={mapUrl}
-      ></iframe>
+    <div className="w-full h-64 rounded-lg overflow-hidden shadow-md">
+      <img 
+        src={mapUrl} 
+        alt="Adventure route map"
+        className="w-full h-full object-cover"
+        onError={() => {
+          console.error('Failed to load Mapbox map');
+        }}
+      />
     </div>
   );
 };

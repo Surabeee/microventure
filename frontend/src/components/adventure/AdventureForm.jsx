@@ -1,300 +1,186 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdventure } from '../../context/AdventureContext';
-import api from '../../services/api';
-import { getCurrentLocation, getLocationName } from '../../utils/locationService';
-import { FaLocationArrow, FaTimes, FaCheck } from 'react-icons/fa';
-import { FaUtensils, FaLandmark, FaTree, FaShoppingBag } from 'react-icons/fa';
-
+import { getCurrentLocation } from '../../utils/locationService';
 
 const AdventureForm = () => {
   const navigate = useNavigate();
-  const { 
-    setAdventure, 
-    setLoading, 
-    setError, 
-    userLocation, 
-    setUserLocation,
-    locationStatus,
-    setLocationStatus,
-    locationError,
-    setLocationError
-  } = useAdventure();
+  const { generateAdventure, loading } = useAdventure();
   
-  const [city, setCity] = useState('');
-  const [duration, setDuration] = useState('2');
-  const [transportMode, setTransportMode] = useState('walking');
-  const [locationName, setLocationName] = useState('');
-  
-  // Request user's location
-  const requestLocation = async () => {
-    setLocationStatus('loading');
-    setLocationError(null);
-    
+  const [formData, setFormData] = useState({
+    city: '',
+    radius: 8, // Default to 8km
+    transportMode: 'walking',
+    preferences: [],
+    useCurrentLocation: false,
+    location: null
+  });
+
+  const radiusPresets = [
+    { label: '🏠 Local', value: 3, description: '2-3km' },
+    { label: '🌆 City', value: 8, description: '8-10km' },
+    { label: '🚇 Metro', value: 15, description: '15-20km' }
+  ];
+
+  const handlePresetClick = (value) => {
+    setFormData(prev => ({ ...prev, radius: value }));
+  };
+
+  const handleGetCurrentLocation = async () => {
     try {
       const location = await getCurrentLocation();
-      setUserLocation(location);
-      
-      // Get location name for display
-      const name = await getLocationName(location.latitude, location.longitude);
-      setLocationName(name);
-      
-      setLocationStatus('success');
+      setFormData(prev => ({ 
+        ...prev, 
+        location, 
+        useCurrentLocation: true,
+        city: 'Current Location' 
+      }));
     } catch (error) {
-      console.error('Location error:', error);
-      setLocationError(error.message);
-      setLocationStatus('error');
+      console.error('Error getting location:', error);
+      alert('Unable to get your location. Please enter a city manually.');
     }
   };
-  
-  // Clear location data
-  const clearLocation = () => {
-    setUserLocation(null);
-    setLocationName('');
-    setLocationStatus('idle');
-    setLocationError(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.city && !formData.location) {
+      alert('Please enter a city or use your current location');
+      return;
+    }
+
+    try {
+      await generateAdventure(
+        formData.city,
+        formData.radius,
+        formData.transportMode,
+        formData.location,
+        formData.preferences
+      );
+      navigate('/adventure');
+    } catch (error) {
+      console.error('Error generating adventure:', error);
+    }
   };
-  
-  // Submit form with or without location
-  // Add this state to the component
-const [preferences, setPreferences] = useState([]);
 
-// Add this function to the component
-const togglePreference = (pref) => {
-  if (preferences.includes(pref)) {
-    setPreferences(preferences.filter(p => p !== pref));
-  } else {
-    setPreferences([...preferences, pref]);
-  }
-};
-
-// Update the handleSubmit function to include preferences
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError(null);
-  
-  try {
-    // Include location and preferences if available
-    const adventureData = {
-      city,
-      duration,
-      transportMode,
-      preferences // Add preferences here
-    };
-    
-    // Only add location if we have it
-    if (userLocation) {
-      adventureData.location = {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude
-      };
-    }
-    
-    const result = await api.generateAdventure(
-      adventureData.city,
-      adventureData.duration,
-      adventureData.transportMode,
-      adventureData.location,
-      adventureData.preferences // Pass preferences to the API
-    );
-    
-    setAdventure(result);
-    navigate('/adventure');
-  } catch (err) {
-    if (err.response && err.response.data && err.response.data.suggestion) {
-      // Display the suggestion if available
-      setError(`${err.response.data.error} ${err.response.data.suggestion}`);
-    } else {
-      setError(typeof err === 'string' ? err : 'Failed to generate adventure. Please try again.');
-    }
-    console.error(err);
-  } finally {
-    setLoading(false);
-  }
-};
-
-  
-
-  
   return (
-    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-6 text-center">Create Your Adventure</h2>
+    <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
       
-      <form onSubmit={handleSubmit}>
-
-      
-     
-
-        <div className="mb-4">
-          <label htmlFor="city" className="block text-gray-700 mb-2">City</label>
+      {/* Location Input */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Location
+        </label>
+        <div className="flex gap-2">
           <input
             type="text"
-            id="city"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-            placeholder="e.g., New York, London, Tokyo"
-            required
+            value={formData.city}
+            onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value, useCurrentLocation: false, location: null }))}
+            placeholder="Enter city name"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+            disabled={formData.useCurrentLocation}
           />
-        </div>
-        
-        <div className="mb-4">
-          <label htmlFor="duration" className="block text-gray-700 mb-2">Time Available (hours)</label>
-          <select
-            id="duration"
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-            required
+          <button
+            type="button"
+            onClick={handleGetCurrentLocation}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
           >
-            <option value="1">1 hour</option>
-            <option value="2">2 hours</option>
-            <option value="3">3 hours</option>
-            <option value="4">4 hours</option>
-            <option value="6">6 hours</option>
-            <option value="8">8 hours</option>
-          </select>
+            Use Current Location
+          </button>
         </div>
-        
-        <div className="mb-4">
-          <label className="block text-gray-700 mb-2">Transportation Mode</label>
-          <div className="flex space-x-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="walking"
-                checked={transportMode === 'walking'}
-                onChange={() => setTransportMode('walking')}
-                className="mr-2"
-              />
-              Walking
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="public transit"
-                checked={transportMode === 'public transit'}
-                onChange={() => setTransportMode('public transit')}
-                className="mr-2"
-              />
-              Public Transit
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                value="car/taxi"
-                checked={transportMode === 'car/taxi'}
-                onChange={() => setTransportMode('car/taxi')}
-                className="mr-2"
-              />
-              Car/Taxi
-            </label>
-          </div>
-        </div>
-        
-        <div className="mb-6">
-          <label className="block text-gray-700 mb-2">Starting Location</label>
-          
-          {locationStatus === 'success' ? (
-            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-md">
-              <div className="flex items-center">
-                <FaCheck className="text-green-500 mr-2" />
-                <span>{locationName}</span>
-              </div>
-              <button 
-                type="button"
-                onClick={clearLocation}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <FaTimes />
-              </button>
-            </div>
-          ) : locationStatus === 'loading' ? (
-            <div className="p-3 bg-gray-50 border border-gray-200 rounded-md flex items-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-primary mr-2"></div>
-              <span>Getting your location...</span>
-            </div>
-          ) : locationStatus === 'error' ? (
-            <div className="mb-2">
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 mb-2">
-                {locationError}
-              </div>
-              <button
-                type="button"
-                onClick={requestLocation}
-                className="text-primary hover:underline text-sm"
-              >
-                Try again
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={requestLocation}
-              className="w-full flex items-center justify-center bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 transition duration-200 border border-gray-300"
-            >
-              <FaLocationArrow className="mr-2" />
-              Use my current location
-            </button>
-          )}
-          
-          {locationStatus !== 'idle' && locationStatus !== 'success' && (
-            <p className="text-sm text-gray-500 mt-2">
-              Your adventure will start from a random location in {city} if you don't provide your current location.
-            </p>
-          )}
+      </div>
 
-          <div className="mb-6">
-            <label className="block text-gray-700 mb-2">What are you interested in? (Optional)</label>
-            <div className="grid grid-cols-2 gap-3">
-              <div 
-                className={`p-3 border rounded-md cursor-pointer flex items-center transition-colors
-                            ${preferences.includes('food') ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:bg-gray-50'}`}
-                onClick={() => togglePreference('food')}
-              >
-                <FaUtensils className="mr-2 text-primary" />
-                <span>Food & Drinks</span>
-              </div>
-              
-              <div 
-                className={`p-3 border rounded-md cursor-pointer flex items-center transition-colors
-                            ${preferences.includes('culture') ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:bg-gray-50'}`}
-                onClick={() => togglePreference('culture')}
-              >
-                <FaLandmark className="mr-2 text-primary" />
-                <span>Culture & History</span>
-              </div>
-              
-              <div 
-                className={`p-3 border rounded-md cursor-pointer flex items-center transition-colors
-                            ${preferences.includes('nature') ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:bg-gray-50'}`}
-                onClick={() => togglePreference('nature')}
-              >
-                <FaTree className="mr-2 text-primary" />
-                <span>Parks & Nature</span>
-              </div>
-              
-              <div 
-                className={`p-3 border rounded-md cursor-pointer flex items-center transition-colors
-                            ${preferences.includes('shopping') ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:bg-gray-50'}`}
-                onClick={() => togglePreference('shopping')}
-              >
-                <FaShoppingBag className="mr-2 text-primary" />
-                <span>Shopping</span>
-              </div>
-            </div>
-          </div>
+      {/* Radius Selection */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Search Radius: {formData.radius}km
+        </label>
+        
+        {/* Preset Buttons */}
+        <div className="flex gap-2 mb-3">
+          {radiusPresets.map((preset) => (
+            <button
+              key={preset.value}
+              type="button"
+              onClick={() => handlePresetClick(preset.value)}
+              className={`px-3 py-2 text-sm rounded-md border ${
+                formData.radius === preset.value
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {preset.label}
+              <div className="text-xs opacity-75">{preset.description}</div>
+            </button>
+          ))}
         </div>
         
-        <button
-          type="submit"
-          className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-blue-600 transition duration-200"
+        {/* Radius Slider */}
+        <input
+          type="range"
+          min="1"
+          max="25"
+          value={formData.radius}
+          onChange={(e) => setFormData(prev => ({ ...prev, radius: parseInt(e.target.value) }))}
+          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+        />
+        <div className="flex justify-between text-xs text-gray-500 mt-1">
+          <span>1km</span>
+          <span>25km</span>
+        </div>
+      </div>
+
+      {/* Transport Mode */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Transportation
+        </label>
+        <select
+          value={formData.transportMode}
+          onChange={(e) => setFormData(prev => ({ ...prev, transportMode: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
         >
-          Generate Adventure
-        </button>
-      </form>
-    </div>
+          <option value="walking">Walking</option>
+          <option value="public transit">Public Transit</option>
+          <option value="car/taxi">Car/Taxi</option>
+        </select>
+      </div>
+
+      {/* Preferences */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Interests (Optional)
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          {['museums', 'parks', 'food', 'shopping', 'historical', 'cultural', 'nature', 'entertainment'].map((pref) => (
+            <label key={pref} className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.preferences.includes(pref)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setFormData(prev => ({ ...prev, preferences: [...prev.preferences, pref] }));
+                  } else {
+                    setFormData(prev => ({ ...prev, preferences: prev.preferences.filter(p => p !== pref) }));
+                  }
+                }}
+                className="mr-2"
+              />
+              <span className="capitalize">{pref}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Submit Button */}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-primary text-white py-3 px-4 rounded-md hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? 'Generating Adventure...' : 'Create Adventure'}
+      </button>
+    </form>
   );
 };
 

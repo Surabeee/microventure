@@ -1,120 +1,62 @@
 const express = require('express');
 const router = express.Router();
-const { generateAdventureWithWebSearch } = require('../services/openaiService');
-const { geocodeAddress } = require('../services/mapsService');
+// Import Gemini service and validation middleware
+const { generateAdventure } = require('../services/geminiService');
+const { validateAdventureRequest } = require('../middleware/errorHandler');
 
-router.post('/generate', async (req, res) => {
+// Generate adventure endpoint with validation
+router.post('/generate', validateAdventureRequest, async (req, res, next) => {
   try {
-    const { city, duration, transportMode, location, preferences } = req.body;
+    const { city, radius, transportMode, location, preferences } = req.body;
     
-    if (!city || !duration || !transportMode) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
+    console.log(`🎯 Generating adventure for ${city} (${radius}km radius, ${transportMode})`);
+    console.log('📋 Parameters:', { city, radius, transportMode, location, preferences });
     
-    // Convert duration to a number
-    const durationHours = parseFloat(duration);
+    const startTime = Date.now();
     
-    if (isNaN(durationHours) || durationHours <= 0) {
-      return res.status(400).json({ error: 'Invalid duration' });
-    }
+    // Generate adventure using Gemini service
+    const adventure = await generateAdventure(city, radius, transportMode, location, preferences);
     
-    // Validate transportation mode
-    const validModes = ['walking', 'public transit', 'car/taxi'];
-    if (!validModes.includes(transportMode)) {
-      return res.status(400).json({ 
-        error: 'Invalid transportation mode. Must be "walking", "public transit", or "car/taxi"'
-      });
-    }
+    const endTime = Date.now();
+    const generationTime = endTime - startTime;
     
-    // Validate location if provided
-    if (location && (typeof location.latitude !== 'number' || typeof location.longitude !== 'number')) {
-      return res.status(400).json({ error: 'Invalid location format' });
-    }
+    console.log(`✅ Adventure generated successfully in ${generationTime}ms`);
+    console.log(`📍 Generated ${adventure.stops.length} stops`);
     
-    console.log(`Generating adventure in ${city} for ${durationHours} hours by ${transportMode}`);
-    if (location) {
-      console.log(`Starting from coordinates: ${location.latitude}, ${location.longitude}`);
-    }
-    
-    // Define startLocation so it's accessible in catch blocks
-    let startLocation;
-    
-    try {
-      // If location is not provided, geocode the city center
-      if (!location) {
-        try {
-          startLocation = await geocodeAddress(`${city} city center`, city);
-          console.log(`Using geocoded city center: ${JSON.stringify(startLocation)}`);
-        } catch (geocodeError) {
-          console.error("Error geocoding city center:", geocodeError);
-          return res.status(400).json({ 
-            error: `Could not locate the center of ${city}. Please provide a specific location.` 
-          });
-        }
-      } else {
-        startLocation = location;
+    // Add metadata to response
+    res.json({
+      ...adventure,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        generationTimeMs: generationTime,
+        aiProvider: 'Google Gemini',
+        version: '2.0.0',
+        searchRadius: `${radius}km`
       }
-      
-      // Time validation checks based on transport mode
-      const timeValidationResult = validateTimeAndTransport(durationHours, transportMode);
-      if (!timeValidationResult.isValid) {
-        return res.status(400).json({
-          error: timeValidationResult.message,
-          suggestion: timeValidationResult.suggestion
-        });
-      }
-      
-      // Generate the adventure with OpenAI
-      const adventure = await generateAdventureWithWebSearch(
-        city, 
-        durationHours, 
-        transportMode, 
-        startLocation,
-        preferences || []
-      );
-      
-      res.json(adventure);
-    } catch (error) {
-      console.error('Adventure generation detailed error:', error);
-      throw error;
-    }
+    });
+    
   } catch (error) {
-    console.error('Adventure generation error:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate adventure' });
+    console.error('❌ Error generating adventure:', error);
+    next(error); // Pass to error handler middleware
   }
 });
 
-/**
- * Validate if the requested time and transport mode combination is feasible
- */
-function validateTimeAndTransport(durationHours, transportMode) {
-  // Minimum time needed based on transport mode
-  const minimumTimeByMode = {
-    'walking': 1.5,     // At least 1.5 hours for walking adventures
-    'public transit': 1, // At least 1 hour for transit
-    'car/taxi': 0.5      // At least 30 minutes for driving
-  };
-  
-  const minTime = minimumTimeByMode[transportMode] || 1;
-  
-  if (durationHours < minTime) {
-    let suggestion;
-    if (transportMode === 'walking') {
-      suggestion = `Consider using public transit or car/taxi, or increase your time to at least ${minTime} hours.`;
-    } else if (transportMode === 'public transit') {
-      suggestion = `Consider using a car/taxi, or increase your time to at least ${minTime} hours.`;
-    } else {
-      suggestion = `Please increase your available time to at least ${minTime} hours.`;
-    }
-    
-    return {
-      isValid: false,
-      message: `An adventure using ${transportMode} requires at least ${minTime} hours to be meaningful.`,
-      suggestion
-    };
-  }
-  
-  return { isValid: true };
-}
+// Get adventure status endpoint (for debugging)
+router.get('/status', (req, res) => {
+  res.json({
+    status: 'operational',
+    aiProvider: 'Google Gemini',
+    version: '2.0.0',
+    features: [
+      'Real location discovery',
+      'Travel time calculation',
+      'AI-generated narratives',
+      'Multi-transport support',
+      'Preference-based filtering'
+    ],
+    supportedTransportModes: ['walking', 'public transit', 'car/taxi'],
+    supportedPreferences: ['museums', 'parks', 'historical', 'food', 'shopping', 'entertainment', 'cultural', 'nature']
+  });
+});
 
 module.exports = router;
